@@ -2,8 +2,10 @@
 #ifdef PROCESS
 #include <sys/mman.h>
 #define peach_alloc(tt) mmap(NULL, (tt), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0)
+#define max_depth 3
 #else
 #define peach_alloc(tt) malloc((tt))
+#define max_depth 4
 #endif
 
 movie_profile* movies[MAX_MOVIES];
@@ -31,7 +33,7 @@ void *merge_sort (void *qwq)
 {
 	thread_arg *arg = qwq;
 
-	if (arg->size <= 1024 || arg->depth >= 4)
+	if (arg->size <= 1024 || arg->depth >= max_depth)
 	{
 		sort(arg->mov, arg->pts, arg->size);
 		return 0;
