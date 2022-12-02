@@ -12,11 +12,11 @@ thread: tserver.o lib.o
 process: pserver.o lib.o
 	$(CC) $(CFLAGS) pserver.o lib.o -o pserver $(LIB)
 
-tserver.o: tserver.c
-	$(CC) $(LIB) -c tserver.c -o tserver.o
+tserver.o: server.c
+	$(CC) $(LIB) -c server.c -o tserver.o
 
-pserver.o: pserver.c 
-	$(CC) $(LIB) -c pserver.c -o pserver.o
+pserver.o: server.c 
+	$(CC) $(LIB) -c -D PROCESS server.c -o pserver.o
 
 lib.o: lib.c
 	$(CC) -c lib.c

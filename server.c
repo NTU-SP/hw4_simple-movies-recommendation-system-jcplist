@@ -1,45 +1,271 @@
 #include "header.h"
+#ifdef PROCESS
+#include <sys/mman.h>
+#define peach_alloc(tt) mmap(NULL, (tt), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0)
+#else
+#define peach_alloc(tt) malloc((tt))
+#endif
 
 movie_profile* movies[MAX_MOVIES];
 unsigned int num_of_movies = 0;
 unsigned int num_of_reqs = 0;
 
-// Global request queue and pointer to front of queue
-// TODO: critical section to protect the global resources
+// no edit, globally shared!
 request* reqs[MAX_REQ];
-int front = -1;
-
-/* Note that the maximum number of processes per workstation user is 512. * 
- * We recommend that using about <256 threads is enough in this homework. */
-pthread_t tid[MAX_CPU][MAX_THREAD]; //tids for multithread
-
-#ifdef PROCESS
-pid_t pid[MAX_CPU][MAX_THREAD]; //pids for multiprocess
-#endif
-
-//mutex
-pthread_mutex_t lock; 
+// merge after split, no race condition!
 
 void initialize(FILE* fp);
 request* read_request();
-int pop();
 
-int pop(){
-	front+=1;
-	return front;
+typedef struct thread_arg
+{
+	char **mov;
+	double *pts;
+	char **a;
+	double *b;
+	int size;
+	int depth;
+} thread_arg;
+
+void *merge_sort (void *qwq)
+{
+	thread_arg *arg = qwq;
+
+	if (arg->size <= 1024 || arg->depth >= 4)
+	{
+		sort(arg->mov, arg->pts, arg->size);
+		return 0;
+	}
+
+	thread_arg left, right;
+	
+	left.mov = arg->mov;
+	left.pts = arg->pts;
+	left.a = arg->a;
+	left.b = arg->b;
+	left.size = arg->size / 2;
+	left.depth = arg->depth + 1;
+
+	right.mov = arg->mov + left.size;
+	right.pts = arg->pts + left.size;
+	right.a = arg->a + left.size;
+	right.b = arg->b + left.size;
+	right.size = arg->size - left.size;
+	right.depth = arg->depth + 1;
+#ifdef PROCESS
+    pid_t lpid, rpid;
+	if ((lpid = fork()) == 0)
+	{
+		merge_sort(&left);
+		exit(0);
+	}
+	else if (lpid < 0)
+	{
+		ERR_EXIT("fork failed");
+	}
+	if ((rpid = fork()) == 0)
+	{
+		merge_sort(&right);
+		exit(0);
+	}
+	else if (rpid < 0)
+	{
+		ERR_EXIT("fork failed");
+	}
+	while(wait(0) > 0);
+#else
+	pthread_t ltid, rtid;
+	if (pthread_create(&ltid, NULL, merge_sort, &left))
+	{
+		ERR_EXIT("can't create thread");
+	}
+	if (pthread_create(&rtid, NULL, merge_sort, &right))
+	{
+		ERR_EXIT("can't create thread");
+	}
+
+	pthread_join(ltid, NULL), pthread_join(rtid, NULL);
+#endif
+	int l = 0, r = 0, m = 0;
+	for (; l < left.size && r < right.size;)
+	{
+		if (left.pts[l] > right.pts[r])
+		{
+			arg->a[m] = left.mov[l];
+			arg->b[m] = left.pts[l];
+			m++, l++;
+		}
+		else if (left.pts[l] < right.pts[r])
+		{
+			arg->a[m] = right.mov[r];
+			arg->b[m] = right.pts[r];
+			m++, r++;
+		}
+		else if (strcmp(left.mov[l], right.mov[r]) < 0)
+		{
+			arg->a[m] = left.mov[l];
+			arg->b[m] = left.pts[l];
+			m++, l++;
+		}
+		else
+		{
+			arg->a[m] = right.mov[r];
+			arg->b[m] = right.pts[r];
+			m++, r++;
+		}
+	}
+
+	while (l < left.size)
+	{
+		arg->a[m] = left.mov[l];
+		arg->b[m] = left.pts[l];
+		m++, l++;
+	}
+
+	while (r < right.size)
+	{
+		arg->a[m] = right.mov[r];
+		arg->b[m] = right.pts[r];
+		m++, r++;
+	}
+
+	memcpy(arg->mov, arg->a, sizeof(char *) * arg->size);
+	memcpy(arg->pts, arg->b, sizeof(double) * arg->size);
+
+	return 0;
+}
+
+static inline double score (const double *a, const double *b)
+{
+	double r = 0;
+	for (int i = 0; i < NUM_OF_GENRE; i++)
+	{
+		r += a[i] * b[i];
+	}
+	return r;
+}
+
+int filter (char ***mov, double **pts, const char *key, const double *profile, char (**movie_name_pool)[MAX_LEN])
+{
+	int sz = 0;
+	for (int i = 0; i < num_of_movies; i++)
+	{
+		if (strstr(movies[i]->title, key) != NULL) sz++;
+	}
+
+	char **res = peach_alloc(sizeof(char *) * sz);
+	double *resb = peach_alloc(sizeof(double) * sz);
+    char (*resp)[MAX_LEN] = peach_alloc(MAX_LEN * sz);
+
+	for (int i = 0, j = 0; j < sz; i++)
+	{
+		if (strstr(movies[i]->title, key) != NULL)
+		{
+			res[j] = resp[j];
+			strcpy(res[j], movies[i]->title);
+			resb[j] = score(movies[i]->profile, profile);
+			j++;
+		}
+	}
+	*mov = res;
+	*pts = resb;
+    *movie_name_pool = resp;
+
+	return sz;
+}
+
+void *one_request (void *qwq)
+{
+	int arg = *(int *)qwq;
+	char **mov;
+	double *pts;
+	int size;
+
+	double profile[NUM_OF_GENRE];
+	double sum = 0;
+	for (int i = 0; i < NUM_OF_GENRE; i++)
+	{
+		profile[i] = reqs[arg]->profile[i];
+		sum += profile[i] * profile[i];
+	}
+	if (sum)
+	{
+		sum = sqrt(sum);
+		for (int i = 0; i < NUM_OF_GENRE; i++)
+		{
+			profile[i] /= sum;
+		}
+	}
+
+    char (*movie_name_pool)[MAX_LEN];
+
+	if (reqs[arg]->keywords[0] == '*')
+	{
+		mov = peach_alloc(sizeof(char *) * num_of_movies);
+		pts = peach_alloc(sizeof(double) * num_of_movies);
+        movie_name_pool = peach_alloc(MAX_LEN * num_of_movies);
+		size = num_of_movies;
+		for (int i = 0; i < num_of_movies; i++)
+		{
+			mov[i] = movie_name_pool[i];
+			strcpy(mov[i], movies[i]->title);
+			pts[i] = score(movies[i]->profile, profile);
+		}
+	}
+	else size = filter(&mov, &pts, reqs[arg]->keywords, profile, &movie_name_pool);
+
+	char **a = peach_alloc(sizeof(char *) * size);
+	double *b = peach_alloc(sizeof(double) * size);
+
+	thread_arg root;
+	root.mov = mov;
+	root.pts = pts;
+	root.a = a;
+	root.b = b;
+	root.size = size;
+	root.depth = 0;
+
+#ifdef PROCESS
+    pid_t rpid;
+	if ((rpid = fork()) == 0)
+	{
+		merge_sort(&root);
+		exit(0);	
+	}
+	else if (rpid < 0)
+	{
+		ERR_EXIT("fork failed");
+	}
+	while (wait(0) > 0);
+#else
+	pthread_t rtid;
+	if (pthread_create(&rtid, NULL, merge_sort, &root))
+	{
+		ERR_EXIT("can't create thread");
+	}
+
+	pthread_join(rtid, NULL);
+#endif
+
+	char fn[MAX_LEN];
+#ifdef PROCESS
+	sprintf(fn, "%dp.out", reqs[arg]->id);
+#else
+    sprintf(fn, "%dt.out", reqs[arg]->id);
+#endif
+	FILE *flog = fopen(fn, "w");
+	
+	for (int i = 0; i < size; i++)
+	{
+		fputs(mov[i], flog);
+		fputc('\n', flog);
+	}
+	fclose(flog);
+	
+	return 0;
 }
 
 int main(int argc, char *argv[]){
-
-	if(argc != 1){
-#ifdef PROCESS
-		fprintf(stderr,"usage: ./pserver\n");
-#elif defined THREAD
-		fprintf(stderr,"usage: ./tserver\n");
-#endif
-		exit(-1);
-	}
-
 	FILE *fp;
 
 	if ((fp = fopen("./data/movies.txt","r")) == NULL){
@@ -49,6 +275,22 @@ int main(int argc, char *argv[]){
 	initialize(fp);
 	assert(fp != NULL);
 	fclose(fp);	
+
+    int args[MAX_REQ];
+	pthread_t tids[MAX_REQ];
+	for (int i = 0; i < num_of_reqs; i++)
+	{
+        args[i] = i;
+		if (pthread_create(tids + i, NULL, one_request, args + i))
+		{
+			ERR_EXIT("can't create thread");
+		}
+	}
+
+	for (int i = 0; i < num_of_reqs; i++)
+	{
+		pthread_join(tids[i], NULL);
+	}
 
 	return 0;
 }
