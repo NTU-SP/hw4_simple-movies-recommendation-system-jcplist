@@ -55,7 +55,7 @@ void *merge_sort (void *qwq)
 	right.size = arg->size - left.size;
 	right.depth = arg->depth + 1;
 #ifdef PROCESS
-    pid_t lpid, rpid;
+	pid_t lpid, rpid;
 	if ((lpid = fork()) == 0)
 	{
 		merge_sort(&left);
@@ -157,7 +157,7 @@ int filter (char ***mov, double **pts, const char *key, const double *profile, c
 
 	char **res = peach_alloc(sizeof(char *) * sz);
 	double *resb = peach_alloc(sizeof(double) * sz);
-    char (*resp)[MAX_LEN] = peach_alloc(MAX_LEN * sz);
+	char (*resp)[MAX_LEN] = peach_alloc(MAX_LEN * sz);
 
 	for (int i = 0, j = 0; j < sz; i++)
 	{
@@ -171,7 +171,7 @@ int filter (char ***mov, double **pts, const char *key, const double *profile, c
 	}
 	*mov = res;
 	*pts = resb;
-    *movie_name_pool = resp;
+	*movie_name_pool = resp;
 
 	return sz;
 }
@@ -199,13 +199,13 @@ void *one_request (void *qwq)
 		}
 	}
 
-    char (*movie_name_pool)[MAX_LEN];
+	char (*movie_name_pool)[MAX_LEN];
 
 	if (reqs[arg]->keywords[0] == '*')
 	{
 		mov = peach_alloc(sizeof(char *) * num_of_movies);
 		pts = peach_alloc(sizeof(double) * num_of_movies);
-        movie_name_pool = peach_alloc(MAX_LEN * num_of_movies);
+	movie_name_pool = peach_alloc(MAX_LEN * num_of_movies);
 		size = num_of_movies;
 		for (int i = 0; i < num_of_movies; i++)
 		{
@@ -228,7 +228,7 @@ void *one_request (void *qwq)
 	root.depth = 0;
 
 #ifdef PROCESS
-    pid_t rpid;
+	pid_t rpid;
 	if ((rpid = fork()) == 0)
 	{
 		merge_sort(&root);
@@ -253,7 +253,7 @@ void *one_request (void *qwq)
 #ifdef PROCESS
 	sprintf(fn, "%dp.out", reqs[arg]->id);
 #else
-    sprintf(fn, "%dt.out", reqs[arg]->id);
+	sprintf(fn, "%dt.out", reqs[arg]->id);
 #endif
 	FILE *flog = fopen(fn, "w");
 	
@@ -278,11 +278,11 @@ int main(int argc, char *argv[]){
 	assert(fp != NULL);
 	fclose(fp);	
 
-    int args[MAX_REQ];
+	int args[MAX_REQ];
 	pthread_t tids[MAX_REQ];
 	for (int i = 0; i < num_of_reqs; i++)
 	{
-        args[i] = i;
+	args[i] = i;
 		if (pthread_create(tids + i, NULL, one_request, args + i))
 		{
 			ERR_EXIT("can't create thread");
@@ -299,7 +299,7 @@ int main(int argc, char *argv[]){
 
 /**=======================================
  * You don't need to modify following code *
- * But feel free if needed.                *
+ * But feel free if needed.	*
  =========================================**/
 
 request* read_request(){
