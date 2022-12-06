@@ -35,7 +35,16 @@ void *merge_sort (void *qwq)
 
 	if (arg->size <= 1024 || arg->depth >= max_depth)
 	{
+		char (*new_pool)[MAX_LEN] = (char (*) [MAX_LEN]) arg->mov[0];
+
 		sort(arg->mov, arg->pts, arg->size);
+
+		for (int i = 0; i < arg->size; i++)
+		{
+			strcpy(new_pool[i], arg->mov[i]);
+			arg->mov[i] = new_pool[i];
+		}
+
 		return 0;
 	}
 
@@ -183,21 +192,7 @@ void *one_request (void *qwq)
 	double *pts;
 	int size;
 
-	double profile[NUM_OF_GENRE];
 	double sum = 0;
-	for (int i = 0; i < NUM_OF_GENRE; i++)
-	{
-		profile[i] = reqs[arg]->profile[i];
-		sum += profile[i] * profile[i];
-	}
-	if (sum)
-	{
-		sum = sqrt(sum);
-		for (int i = 0; i < NUM_OF_GENRE; i++)
-		{
-			profile[i] /= sum;
-		}
-	}
 
 	char (*movie_name_pool)[MAX_LEN];
 
@@ -205,16 +200,16 @@ void *one_request (void *qwq)
 	{
 		mov = peach_alloc(sizeof(char *) * num_of_movies);
 		pts = peach_alloc(sizeof(double) * num_of_movies);
-	movie_name_pool = peach_alloc(MAX_LEN * num_of_movies);
+		movie_name_pool = peach_alloc(MAX_LEN * num_of_movies);
 		size = num_of_movies;
 		for (int i = 0; i < num_of_movies; i++)
 		{
 			mov[i] = movie_name_pool[i];
 			strcpy(mov[i], movies[i]->title);
-			pts[i] = score(movies[i]->profile, profile);
+			pts[i] = score(movies[i]->profile, reqs[arg]->profile);
 		}
 	}
-	else size = filter(&mov, &pts, reqs[arg]->keywords, profile, &movie_name_pool);
+	else size = filter(&mov, &pts, reqs[arg]->keywords, reqs[arg]->profile, &movie_name_pool);
 
 	char **a = peach_alloc(sizeof(char *) * size);
 	double *b = peach_alloc(sizeof(double) * size);
@@ -282,7 +277,7 @@ int main(int argc, char *argv[]){
 	pthread_t tids[MAX_REQ];
 	for (int i = 0; i < num_of_reqs; i++)
 	{
-	args[i] = i;
+		args[i] = i;
 		if (pthread_create(tids + i, NULL, one_request, args + i))
 		{
 			ERR_EXIT("can't create thread");
@@ -310,7 +305,7 @@ request* read_request(){
 	char *keywords;
 	char *token, *ref_pts;
 	char *ptr;
-	double ret;
+	double ret,sum;
 
 	scanf("%u %254s %254s",&id,buf1,buf2);
 	keywords = malloc(sizeof(char)*strlen(buf1)+1);
@@ -325,11 +320,22 @@ request* read_request(){
 	if(profile == NULL){
 		ERR_EXIT("malloc");
 	}
+	sum = 0;
 	ref_pts = strtok(buf2,delim);
 	for(int i = 0;i < NUM_OF_GENRE;i++){
 		ret = strtod(ref_pts, &ptr);
 		profile[i] = ret;
+		sum += ret*ret;
 		ref_pts = strtok(NULL,delim);
+	}
+
+	// normalize
+	sum = sqrt(sum);
+	for(int i = 0;i < NUM_OF_GENRE; i++){
+		if(sum == 0)
+				profile[i] = 0;
+		else
+				profile[i] /= sum;
 	}
 
 	request* r = malloc(sizeof(request));
