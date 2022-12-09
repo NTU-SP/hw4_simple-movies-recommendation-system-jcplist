@@ -90,12 +90,10 @@ void *merge_sort (void *qwq)
 	{
 		ERR_EXIT("can't create thread");
 	}
-	if (pthread_create(&rtid, NULL, merge_sort, &right))
-	{
-		ERR_EXIT("can't create thread");
-	}
 
-	pthread_join(ltid, NULL), pthread_join(rtid, NULL);
+	merge_sort(&right);
+
+	pthread_join(ltid, NULL);
 #endif
 	int l = 0, r = 0, m = 0;
 	for (; l < left.size && r < right.size;)
@@ -235,13 +233,7 @@ void *one_request (void *qwq)
 	}
 	while (wait(0) > 0);
 #else
-	pthread_t rtid;
-	if (pthread_create(&rtid, NULL, merge_sort, &root))
-	{
-		ERR_EXIT("can't create thread");
-	}
-
-	pthread_join(rtid, NULL);
+	merge_sort(&root);
 #endif
 
 	char fn[MAX_LEN];
