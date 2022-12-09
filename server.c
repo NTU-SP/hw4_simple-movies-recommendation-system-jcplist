@@ -5,7 +5,7 @@
 #define max_depth 3
 #else
 #define peach_alloc(tt) malloc((tt))
-#define max_depth 4
+#define max_depth 5
 #endif
 
 movie_profile* movies[MAX_MOVIES];
