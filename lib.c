@@ -36,14 +36,16 @@ static char* add_secret(char* s, int length){
 	assert(length < MAX_LEN && length >= 0);
 	char key[MAX_LEN];
    	sprintf(key,"\t[It's top secret.]");
+	int l = length + strlen(key)+1;
 
 	/*It is guranteed that the strlen of secret string will not exceed MAX_LEN*/
-	char* secret = malloc(sizeof(char)*MAX_LEN);
+	char* secret = malloc(sizeof(char)*l);
 	if(secret == NULL){
 		ERR_EXIT("malloc");
 	}	
-	strcpy(secret,s);
-	strcat(secret,key);
+	memcpy(secret,s,length);
+	memcpy(secret+length,key,strlen(key));
+	secret[l-1] = '\0';
 
 	return secret;
 }

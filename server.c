@@ -35,16 +35,17 @@ void *merge_sort (void *qwq)
 
 	if (arg->size <= 1024 || arg->depth >= max_depth)
 	{
+#ifdef PROCESS
 		char (*new_pool)[MAX_LEN] = (char (*) [MAX_LEN]) arg->mov[0];
-
+#endif
 		sort(arg->mov, arg->pts, arg->size);
-
+#ifdef PROCESS
 		for (int i = 0; i < arg->size; i++)
 		{
 			strcpy(new_pool[i], arg->mov[i]);
 			arg->mov[i] = new_pool[i];
 		}
-
+#endif
 		return 0;
 	}
 
@@ -85,7 +86,7 @@ void *merge_sort (void *qwq)
 	}
 	while(wait(0) > 0);
 #else
-	pthread_t ltid, rtid;
+	pthread_t ltid;
 	if (pthread_create(&ltid, NULL, merge_sort, &left))
 	{
 		ERR_EXIT("can't create thread");
@@ -164,22 +165,28 @@ int filter (char ***mov, double **pts, const char *key, const double *profile, c
 
 	char **res = peach_alloc(sizeof(char *) * sz);
 	double *resb = peach_alloc(sizeof(double) * sz);
+#ifdef PROCESS
 	char (*resp)[MAX_LEN] = peach_alloc(MAX_LEN * sz);
-
+#endif
 	for (int i = 0, j = 0; j < sz; i++)
 	{
 		if (strstr(movies[i]->title, key) != NULL)
 		{
+#ifdef PROCESS
 			res[j] = resp[j];
 			strcpy(res[j], movies[i]->title);
+#else
+			res[j] = movies[i]->title;
+#endif
 			resb[j] = score(movies[i]->profile, profile);
 			j++;
 		}
 	}
 	*mov = res;
 	*pts = resb;
+#ifdef PROCESS
 	*movie_name_pool = resp;
-
+#endif
 	return sz;
 }
 
@@ -190,20 +197,24 @@ void *one_request (void *qwq)
 	double *pts;
 	int size;
 
-	double sum = 0;
-
-	char (*movie_name_pool)[MAX_LEN];
+	char (*movie_name_pool)[MAX_LEN] = NULL;
 
 	if (reqs[arg]->keywords[0] == '*')
 	{
 		mov = peach_alloc(sizeof(char *) * num_of_movies);
 		pts = peach_alloc(sizeof(double) * num_of_movies);
+#ifdef PROCESS
 		movie_name_pool = peach_alloc(MAX_LEN * num_of_movies);
+#endif
 		size = num_of_movies;
 		for (int i = 0; i < num_of_movies; i++)
 		{
+#ifdef PROCESS
 			mov[i] = movie_name_pool[i];
 			strcpy(mov[i], movies[i]->title);
+#else
+			mov[i] = movies[i]->title;
+#endif
 			pts[i] = score(movies[i]->profile, reqs[arg]->profile);
 		}
 	}
@@ -295,7 +306,7 @@ request* read_request(){
 	char delim[2] = ",";
 
 	char *keywords;
-	char *token, *ref_pts;
+	char *ref_pts;
 	char *ptr;
 	double ret,sum;
 
